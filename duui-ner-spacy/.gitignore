@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyz
+*.pyw
+*.pyi
+*.pydevproject
+*.egg-info/
+dist/
+build/
+*.egg
+*.egg-info
+*.pyc
+*.pyo
+*.pyd
+*.pyz
+*.pyw
+*.pyi
+*.pydevproject
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+target/
+bin/
+lib/
+build/
+.gradle/
+.idea/
+.vscode/
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+/dev

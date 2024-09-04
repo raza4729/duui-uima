@@ -12,11 +12,16 @@ Paragraph = luajava.bindClass("de.tudarmstadt.ukp.dkpro.core.api.segmentation.ty
 --  - outputStream: Stream that is sent to the annotator, can be e.g. a string, JSON payload, ...
 --  - parameters: A map of optional parameters
 function serialize(inputCas, outputStream, parameters)
+    print("parameters:")
+    for k, v in pairs(parameters) do;
+        print("  ", k, v)
+    end
+
     -- Get data from CAS
     local document_text = inputCas:getDocumentText();
 
     local language = nil
-    if parameters then
+    if parameters and parameters["language"] ~= nil then
         language = parameters["language"]
     else
         print("No parameters were given, inferring language from CAS")
@@ -26,6 +31,13 @@ function serialize(inputCas, outputStream, parameters)
     end
     if language == "x-unspecified" or language == nil then
         error("Document language was not given and could not be inferred", 2)
+    end
+
+    local validate = true
+    if parameters and parameters["validate"] ~= nil then
+        validate = tostring(parameters["validate"])=="true" and true or false
+    elseif parameters and parameters["validate_sentences"] ~= nil then
+        validate = tostring(parameters["validate_sentences"])=="true" and true or false
     end
 
     local sentences = {}
@@ -59,7 +71,8 @@ function serialize(inputCas, outputStream, parameters)
         text = document_text,
         language = language,
         sentences = sentences,
-        paragraphs = paragraphs
+        paragraphs = paragraphs,
+        validate_sentences = validate
     }))
 end
 

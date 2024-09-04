@@ -91,10 +91,15 @@ class SpaCyProcessor(ProcessorABC[Doc]):
         return self.post_process(
             annotations,
             offsets,
+            validate=request.validate_sentences,
         )
 
     @staticmethod
-    def post_process(annotations: list[Doc], offsets: list[Offset]):
+    def post_process(
+        annotations: list[Doc],
+        offsets: list[Offset],
+        validate: bool = True,
+    ):
         token_to_id = TokenToId()
         results = DuuiResponse(sentences=[], tokens=[], dependencies=[])
         for doc, offset in zip(annotations, offsets):
@@ -113,50 +118,55 @@ class SpaCyProcessor(ProcessorABC[Doc]):
                     sentence_end = sentence and sentence.end
                     sentence = doc[semicolon_begin:sentence_end]
 
+                # If the last sentence in a document ends with a semicolon, the following element in `it` will be None.
+                # In this case, the above lines will resolve to `sentence = doc[last_sentence.begin:None]`, which works as expected.
+                # If the last sentence did not end with a semicolon, `sentence == None` here.
                 if sentence is None:
                     continue
 
-                if bool(SpaCySentenceValidator.check(sentence).is_standalone()):
-                    results.sentences.append(
-                        Offset(
-                            begin=sentence[0].idx + offset.begin,
-                            # add one to point to the next character after sentence end
-                            end=sentence[-1].idx + offset.begin + 1,
+                checked = SpaCySentenceValidator.check(sentence)
+                if validate and not checked.is_standalone():
+                    continue
+
+                results.sentences.append(
+                    Offset(
+                        begin=sentence[0].idx + offset.begin,
+                        # add one to point to the next character after sentence end
+                        end=sentence[-1].idx + offset.begin + 1,
+                    )
+                )
+                for token in sentence:
+                    token_idx = token_to_id.add(token)
+
+                    begin = token.idx + offset.begin
+                    # No need to add one here: `end` already points to the next character
+                    end = begin + len(token)
+                    results.tokens.append(
+                        UimaToken(
+                            begin=begin,
+                            end=end,
+                            idx=token_idx,
+                            pos=doc[token.i].pos_,
+                            tag=doc[token.i].tag_,
+                            lemma=doc[token.i].lemma_,
+                            morph={
+                                k.lower(): v for k, v in token.morph.to_dict().items()
+                            },
                         )
                     )
-                    for token in sentence:
-                        token_idx = token_to_id.add(token)
 
-                        begin = token.idx + offset.begin
-                        # No need to add one here: already points to the next character
-                        end = begin + len(token)
-                        results.tokens.append(
-                            UimaToken(
-                                begin=begin,
-                                end=end,
-                                idx=token_idx,
-                                pos=doc[token.i].pos_,
-                                tag=doc[token.i].tag_,
-                                lemma=doc[token.i].lemma_,
-                                morph={
-                                    k.lower(): v
-                                    for k, v in token.morph.to_dict().items()
-                                },
-                            )
+                for token in sentence:
+                    begin = token.idx + offset.begin
+                    end = begin + len(token)
+                    results.dependencies.append(
+                        UimaDependency(
+                            begin=begin,
+                            end=end,
+                            governor=token_to_id[token.head],
+                            dependent=token_to_id[token],
+                            type=token.dep_.lower(),
+                            flavor="basic",
                         )
-
-                    for token in sentence:
-                        begin = token.idx + offset.begin
-                        end = begin + len(token)
-                        results.dependencies.append(
-                            UimaDependency(
-                                begin=begin,
-                                end=end,
-                                governor=token_to_id[token.head],
-                                dependent=token_to_id[token],
-                                type=token.dep_.lower(),
-                                flavor="basic",
-                            )
-                        )
+                    )
 
         return results

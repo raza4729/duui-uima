@@ -75,6 +75,7 @@ class ProcessorABC(Generic[NlpAnnotation]):
         self,
         annotations: list[NlpAnnotation],
         offsets: list[Offset],
+        validate: bool = True,
     ) -> DuuiResponse:
         pass
 

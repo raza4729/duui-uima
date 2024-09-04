@@ -48,6 +48,7 @@ class DuuiRequest(BaseModel):
     language: Literal["en", "de"] | str
     sentences: list[Offset] | None = None
     paragraphs: list[Offset] | None = None
+    validate_sentences: bool = True
 
 
 class ErrorMessage(BaseModel):

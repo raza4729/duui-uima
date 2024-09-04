@@ -96,16 +96,22 @@ class StanzaProcessor(ProcessorABC[Document]):
         return self.post_process(
             annotations,
             offsets,
+            validate=request.validate_sentences,
         )
 
     @staticmethod
-    def post_process(annotations: list[Document], offsets: list[Offset]):
+    def post_process(
+        annotations: list[Document],
+        offsets: list[Offset],
+        validate: bool = True,
+    ):
         word_to_id = TokenToId()
         results = DuuiResponse(sentences=None, tokens=[], dependencies=[])
         for doc, offset in zip(annotations, offsets):
             # Add a None to the end of the iterator to include the last sentence if it ends with a semicolon.
             for sentence in doc.sentences:
-                if not bool(StanzaSentenceValidator.check(sentence).is_standalone()):
+                checked = StanzaSentenceValidator.check(sentence)
+                if validate and not checked.is_standalone():
                     continue
 
                 tokens: list[Token] = sentence.tokens

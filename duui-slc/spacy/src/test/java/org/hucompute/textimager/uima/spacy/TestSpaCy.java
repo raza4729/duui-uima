@@ -1,17 +1,14 @@
 package org.hucompute.textimager.uima.spacy;
 
 import de.tudarmstadt.ukp.dkpro.core.api.lexmorph.type.pos.POS;
-import de.tudarmstadt.ukp.dkpro.core.api.ner.type.NamedEntity;
 import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence;
 import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Paragraph;
 import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token;
 import de.tudarmstadt.ukp.dkpro.core.api.syntax.type.dependency.Dependency;
 import org.apache.uima.UIMAException;
-import org.apache.uima.cas.impl.XmiCasSerializer;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
-import org.apache.uima.util.XMLSerializer;
 import org.apache.uima.util.XmlCasSerializer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -19,20 +16,16 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.DUUIComposer;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIRemoteDriver;
+import org.texttechnologylab.DockerUnifiedUIMAInterface.driver.DUUIDockerDriver;
 import org.texttechnologylab.DockerUnifiedUIMAInterface.lua.DUUILuaContext;
 import org.xml.sax.SAXException;
 
-import javax.xml.transform.OutputKeys;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-
+import static org.junit.Assert.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 public class TestSpaCy {
@@ -46,6 +39,7 @@ public class TestSpaCy {
                 .withLuaContext(new DUUILuaContext().withJsonLibrary());
 
         composer.addDriver(new DUUIRemoteDriver(100));
+        composer.addDriver(new DUUIDockerDriver(100));
         cas = JCasFactory.createJCas();
     }
 
@@ -165,7 +159,7 @@ public class TestSpaCy {
 
         String language = "en";
 
-        cas.setDocumentText("This is an IPhone by Apple. And this is an iMac.");
+        cas.setDocumentText("This is an IPhone by Apple. And this is an iMac. And");
         cas.setDocumentLanguage(language);
         Paragraph paragraph1 = new Paragraph(cas, 0, 27);
         paragraph1.addToIndexes();
@@ -363,6 +357,36 @@ public class TestSpaCy {
         //         .toArray(String[]::new);
 
         // assertArrayEquals(ents, casEnts);
+    }
+
+    @Test
+    public void multiTestValidate() throws Exception {
+        composer.add(
+            new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-slc-spacy/cu124:0.5.2")
+                .withParameter("validate", "true")
+        );
+
+        cas.setDocumentText("This is a valid sentence; under SLC constraints. and this not.");
+        cas.setDocumentLanguage("en");
+
+        composer.run(cas);
+
+        assertEquals( 1, JCasUtil.select(cas, Sentence.class).size());
+    }
+
+    @Test
+    public void multiTestNoValidate() throws Exception {
+        composer.add(
+            new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-slc-spacy/cu124:0.5.2")
+                .withParameter("validate", "false")
+        );
+
+        cas.setDocumentText("This is a valid sentence; under SLC constraints. and this not.");
+        cas.setDocumentLanguage("en");
+
+        composer.run(cas);
+
+        assertEquals( 2, JCasUtil.select(cas, Sentence.class).size());
     }
 
 }

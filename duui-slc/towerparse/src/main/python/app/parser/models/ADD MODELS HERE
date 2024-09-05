@@ -1,0 +1,17 @@
+Add the Towerparse models to this directory
+
+Naming convention:
+models/towerparse/{language-code}/<Model_Files>
+
+Example Structure:
+
+models/
+└── towerparse/
+    ├── UD_English-EWT/           # English language code
+    │   ├── pytorch_model.bin
+    │   └── config.json
+    │   └── deps.pkl
+    ├── UD_German-HDT/           # German language code
+    │   ├── pytorch_model.bin
+    │   └── config.json
+    │   └── deps.pkl

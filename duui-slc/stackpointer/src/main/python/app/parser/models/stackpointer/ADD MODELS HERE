@@ -1,0 +1,21 @@
+Add the Stackpointer models to this directory
+
+Naming convention:
+models/stackpointer/{language-code}/<Model_Files>
+
+Example Structure:
+
+models/
+└── stackpointer/
+    ├── en/           # English language code
+    │   ├── model.pt
+    │   └── config.yaml
+    │   └── alphabets/
+    ├── de/           # German language code
+    │   ├── model.pt
+    │   └── config.yaml
+    │   └── alphabets/
+    ├── es/           # Spanish language code
+    │   ├── model.pt
+    │   └── config.yaml
+    │   └── alphabets/

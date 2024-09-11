@@ -10,18 +10,18 @@ import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.uima.UIMAException;
+import org.apache.uima.cas.CAS;
 import org.apache.uima.cas.CASException;
 import org.apache.uima.cas.impl.XmiCasSerializer;
 import org.apache.uima.collection.CollectionReaderDescription;
+import org.apache.uima.fit.component.ViewTextCopierAnnotator;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
 import org.apache.uima.jcas.cas.Sofa;
+import org.apache.uima.jcas.tcas.Annotation;
 import org.apache.uima.resource.ResourceInitializationException;
-import org.apache.uima.util.CasIOUtils;
-import org.apache.uima.util.TypeSystemUtil;
-import org.apache.uima.util.XMLSerializer;
-import org.apache.uima.util.XmlCasSerializer;
+import org.apache.uima.util.*;
 import org.dkpro.core.io.text.TextReader;
 import org.dkpro.core.io.xmi.XmiWriter;
 import org.junit.jupiter.api.AfterAll;
@@ -76,8 +76,8 @@ public class CoreNLPTweetsTest {
 
         composer.addDriver(new DUUIUIMADriver());
         composer.addDriver(new DUUIRemoteDriver(1000));
-        composer.add(
-                new DUUIRemoteDriver.Component("http://localhost:8080"));
+//        composer.add(
+//                new DUUIRemoteDriver.Component("http://localhost:8080"));
         /*Following script is used to drop unnecessary annotations from the cas view*/
 //        composer.add(new DUUIUIMADriver.Component(createEngineDescription(
 //                AnnotationDropper.class,
@@ -101,8 +101,8 @@ public class CoreNLPTweetsTest {
 //        composer.add(
 //                new DUUIRemoteDriver.Component("http://localhost:7070"));
 //         corenlp: Omar
-//        composer.add(
-//                new DUUIRemoteDriver.Component("http://localhost:6060"));
+        composer.add(
+                new DUUIRemoteDriver.Component("http://localhost:6060"));
 
 
         /*Used to run the duui component from docker repo*/
@@ -214,6 +214,24 @@ public class CoreNLPTweetsTest {
 //            throw new RuntimeException(e);
 //        }
     }
+
+    public void printMatrix(String[] rowLabels, String[] colLabels, int[][] matrix){
+        System.out.println("2D Matrix (Counts of Negations and Dependency Labels):");
+
+        System.out.print("          "); // For spacing of the row labels
+        for (String depLabel : colLabels) {
+            System.out.print(String.format("%-6s", depLabel)); // Adjust the width for alignment
+        }
+        System.out.println();
+        for (int i = 0; i < rowLabels.length; i++) {
+            System.out.print(String.format("%-11s", rowLabels[i]));
+            for (int j = 0; j < colLabels.length; j++) {
+                System.out.print(String.format("%-6s", matrix[i][j]));
+            }
+            System.out.println(); // New line after each row
+        }
+    }
+
     @Test
     public void DPCoreNLPTweetsTest() throws Exception {
 
@@ -327,11 +345,9 @@ public class CoreNLPTweetsTest {
 
         String dataPath = "/home/staff_homes/raza/Documents/Data/germany2/text/de/";
         File dir = new File(dataPath);
-        String[][] data = new String[0][];
         List<String> negationsDe = Arrays.asList("nein", "nicht", "nichts", "kein", "keine", "keinen", "noch", "nie", "niemand", "noch nicht", "nie mehr", "ohne", "keineswegs", "auf keinen");
 //        List<String> negationsDe = Arrays.asList("not", "no", "nothing", "nobody", "none", "nowhere", "neither", "nor", "never", "naught", "nary", "no one", "nothing", "nobody", "nowhere");
 
-        int iter = 0, nofTwtsWithNeg = 0;
         if(dir.isDirectory()) {
             for(File file : Objects.requireNonNull(dir.listFiles())) {
                 if(file.isFile()) {
@@ -350,12 +366,11 @@ public class CoreNLPTweetsTest {
                                 Path path = Paths.get("/home/staff_homes/raza/Documents/Data/germany2-xmi/de/spacy/"+fileName+".xmi.gz");
                                 dumpXMI(cas, path);
                                 cas.reset();
-                                nofTwtsWithNeg++;
                             }
                         }
                     }
                 }
-            }System.out.println("Total no. of Tweets with Negation : " + nofTwtsWithNeg);
+            }
         } else {
             logger.info("The path isn't a valid directory.");
         }
@@ -363,25 +378,191 @@ public class CoreNLPTweetsTest {
 
     @Test
     public void spaCyTest() throws Exception {
-        String dataPath = "/home/staff_homes/raza/Documents/Data/germany2-xmi/de/spacy/";
+//        List<String> negators = Arrays.asList("nein", "nicht", "nichts", "kein", "keine", "keinen", "noch", "nie",
+//                "niemand", "noch nicht", "nie mehr", "ohne", "keineswegs", "auf keinen");
+        List<String> negators = Arrays.asList("not", "no", "nothing", "nobody", "none", "nowhere", "neither", "nor", "never", "naught", "nary", "no one", "nothing", "nobody", "nowhere");
+
+        String[] negationsDe = negators.toArray(new String[0]);
+//        String[] depLabels = {"--", "AC", "AG", "CC", "CD", "CJ", "CM", "CP", "DA", "DM", "EP", "JU", "MO", "NG", "NK",
+//                "OA", "OC", "OG", "OP", "PD", "PG", "PH", "PM", "RC", "RE", "RS", "SB", "UC", "VO", "AMS", "APP", "CVC",
+//                "DEP", "MNR", "PUNCT", "NMC", "PAR", "PNC", "SBP", "SVP"};
+
+        String[] depLabels = {"--", "CC", "RELCL", "META", "DOBJ", "NSUBJ", "ADVCL", "INTJ", "AUXPASS", "QUANTMOD", "NMOD", "EXPL", "COMPOUND",
+                "AMOD", "DATIVE", "CSUBJPASS", "ATTR", "PCOMP", "ACL", "AUX", "DEP", "DET", "NPADVMOD", "PREDET", "OPRD", "CSUBJ",
+                "NEG", "PUNCT", "PRT", "AGENT", "NUMMOD", "CASE", "APPOS", "POBJ", "POSS", "PREP", "ACOMP", "CONJ", "PARATAXIS",
+                "XCOMP", "CCOMP", "NSUBJPASS", "ADVMOD", "PRECONJ", "MARK"};
+
+        int[][] cooccurMat = new int[negationsDe.length][depLabels.length];
+
+        List<String> dependencies = new ArrayList<>();
+        String dataPath = "/home/staff_homes/raza/Documents/Data/germany2-xmi/en/spacy/";
+        String[][] data = new String[0][];
+        int totalTweets = 0, totalSentences = 0, avgLenSentences = 0, iter = 0;
         File dir = new File(dataPath);
+        /*check the given path if it is dir or not*/
         if(dir.isDirectory()) {
+            /*loop through the files in the dir: *.xmi files*/
             for(File file : Objects.requireNonNull(dir.listFiles())){
+                /*check if it is a valid file*/
                 if(file.isFile()) {
-                    System.out.println(file.getName());
                     Path pathToXmi = Paths.get(dataPath+file.getName());
+                    /*load the file in the JCas*/
                     CasIOUtils.load(new GZIPInputStream(Files.newInputStream(pathToXmi)),  cas.getCas());
+                    /*get the sentences using Sentence class from UIMA*/
                     Collection<Sentence> sentences = JCasUtil.select(cas, Sentence.class);
+                    totalTweets ++;
                     for(Sentence s:sentences) {
-                        System.out.println(s.getCoveredText());
+                        /*filter the sentences that contain predefined negators*/
+                        for (String neg: negators){
+                            if (s.getCoveredText().contains(neg)){
+                                String[] words = s.getCoveredText().split("\\s+");
+                                avgLenSentences += words.length;
+                                totalSentences++;
+                                String[] stringRow = new String[]{s.getCoveredText()};
+                                data =  appendRow(data, stringRow);
+                                for (Dependency dep : JCasUtil.selectCovered(Dependency.class, s)) {
+                                    dependencies.add(dep.getDependencyType());
+                                    /*int colIndex = Arrays.asList(depLabels).indexOf(dep.getDependencyType());
+                                    int rowIndex = Arrays.asList(negationsDe).indexOf(dep.getCoveredText());
+                                    if (colIndex!=-1 && rowIndex!=-1) {
+                                        cooccurMat[rowIndex][colIndex]++;
+                                    }*/
+                                }
+                            }
+                        }
                     }
+//                    break;
                 }
-                break;
             }
         }
         else {logger.info("The path isn't a valid directory.");}
+        System.out.println("\nTotal no. of sentences that use negation : " + totalSentences);
+        System.out.println("Total no. of Tweets : " + totalTweets);
+        System.out.println("Avg. length of sentences : " + avgLenSentences/totalSentences);
+        calculateNegDistribution(data, negators);
+        Set<String> depSet = new HashSet<>(dependencies);
+        System.out.println("Dependencies found :"+depSet);
 
+        FileWriter fileWriter = new FileWriter("/home/staff_homes/raza/Documents/Data/output/spacy/dependencies-spacy-en.txt");
+        for (String str : dependencies) {
+            fileWriter.write(str + System.lineSeparator());
+        }
+        fileWriter.close();
+//        printMatrix(negationsDe, depLabels, cooccurMat);
     }
 
+    @Test
+    public void coreNLPTest() throws Exception {
+//        List<String> negators = Arrays.asList("nein", "nicht", "nichts", "kein", "keine", "keinen", "noch", "nie",
+//                "niemand", "noch nicht", "nie mehr", "ohne", "keineswegs", "auf keinen");
+        List<String> negators = Arrays.asList("not", "no", "nothing", "nobody", "none", "nowhere", "neither", "nor", "never", "naught", "nary", "no one", "nothing", "nobody", "nowhere");
+
+
+        List<String> dependencies = new ArrayList<>();
+        String dataPath = "/home/staff_homes/raza/Documents/Data/germany2-xmi/en/spacy/";
+        String[][] data = new String[0][];
+        int totalTweets = 0, totalSentences = 0, avgLenSentences = 0, iter = 0;
+        File dir = new File(dataPath);
+        /*check the given path if it is dir or not*/
+        if(dir.isDirectory()) {
+            /*loop through the files in the dir: *.xmi files*/
+            for(File file : Objects.requireNonNull(dir.listFiles())){
+                /*check if it is a valid file*/
+                if(file.isFile()) {
+                    System.out.println(file.getName());
+                    Path pathToXmi = Paths.get(dataPath+file.getName());
+                    /*load the file in the JCas*/
+                    CasIOUtils.load(new GZIPInputStream(Files.newInputStream(pathToXmi)),  cas.getCas());
+
+                    JCas pCoreNLPCas = copyView(cas, "_InitialView", "coreNLP");
+
+//                    cas.createView("coreNLP");
+//                    JCas pCoreNLPCas = cas.getView("coreNLP");
+//                    JCas pEmpty = JCasFactory.createJCas();
+//
+//                    CasCopier.copyCas(cas.getView("_InitialView").getCas(), pEmpty.getCas(), true);
+//                    CasCopier.copyCas(pEmpty.getCas(), pCoreNLPCas.getCas().getView("coreNLP"), false);
+
+
+
+                    /*get the sentences using Sentence class from UIMA*/
+                    Collection<Sentence> sentences = JCasUtil.select(cas, Sentence.class);
+                    totalTweets ++;
+                    Set<String> sentenceSet = new HashSet<>(0);
+                    for(Sentence s:sentences) {
+                        /*filter the sentences that contain predefined negators*/
+                        for (String neg: negators){
+                            if (s.getCoveredText().contains(neg)){
+
+                                  sentenceSet.add(s.getBegin()+"-"+s.getEnd());
+
+//                                cas.setDocumentText(s.getCoveredText());
+//                                cas.setDocumentLanguage("en");
+//                                composer.run(cas);
+//
+//                                String[] words = s.getCoveredText().split("\\s+");
+//                                avgLenSentences += words.length;
+//                                totalSentences++;
+//                                String[] stringRow = new String[]{s.getCoveredText()};
+//                                data =  appendRow(data, stringRow);
+//                                System.out.println(s.getCoveredText());
+//                                for (Dependency dep : JCasUtil.selectCovered(Dependency.class, s)) {
+//                                    dependencies.add(dep.getDependencyType());
+//                                    System.out.println(dep.getCoveredText()+"       "+dep.getDependencyType());
+//                                }
+                            }
+                        }
+                    }
+
+                    Set<Annotation> removals = new HashSet<>(0);
+                    JCasUtil.select(pCoreNLPCas, Sentence.class).stream().filter(s->{
+
+                        String sValue = s.getBegin()+"-"+s.getEnd();
+                        return !sentenceSet.contains(sValue);
+
+                    }).forEach(s->{
+                        removals.add(s);
+                    });
+                    JCasUtil.select(pCoreNLPCas, Dependency.class).stream().forEach(s->{
+                        removals.add(s);
+                    });
+
+                    removals.stream().forEach(a->{
+                        a.removeFromIndexes();
+                    });
+
+                    System.out.println(JCasUtil.select(cas, Sentence.class).size());
+                    System.out.println(JCasUtil.select(pCoreNLPCas, Sentence.class).size());
+
+                    break;
+                }
+            }
+        }
+        else {logger.info("The path isn't a valid directory.");}
+        /*System.out.println("\nTotal no. of sentences that use negation : " + totalSentences);
+        System.out.println("Total no. of Tweets : " + totalTweets);
+        System.out.println("Avg. length of sentences : " + avgLenSentences/totalSentences);
+        calculateNegDistribution(data, negators);
+        Set<String> depSet = new HashSet<>(dependencies);
+        System.out.println("Dependencies found :"+depSet);
+
+        FileWriter fileWriter = new FileWriter("/home/staff_homes/raza/Documents/Data/output/corenlp/dependencies-corenlp-en.txt");
+        for (String str : dependencies) {
+            fileWriter.write(str + System.lineSeparator());
+        }
+        fileWriter.close();*/
+    }
+
+    public static JCas copyView(JCas pCas, String sSourceView, String sTargetView) throws UIMAException {
+
+        JCas copyCas = JCasFactory.createJCas();
+        CasCopier copyTo = new CasCopier(pCas.getCas(), copyCas.getCas());
+        copyTo.copyCasView(pCas.getView(sSourceView).getCas(), true);
+
+        CasCopier copyBack = new CasCopier(copyCas.getCas(), pCas.getCas());
+        copyBack.copyCasView(copyCas.getView(sSourceView).getCas(), sTargetView, true);
+
+        return pCas.getView(sTargetView);
+    }
 
 }

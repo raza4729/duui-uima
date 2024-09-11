@@ -10,12 +10,15 @@ import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.uima.UIMAException;
+import org.apache.uima.cas.CASException;
 import org.apache.uima.cas.impl.XmiCasSerializer;
 import org.apache.uima.collection.CollectionReaderDescription;
 import org.apache.uima.fit.factory.JCasFactory;
 import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
 import org.apache.uima.jcas.cas.Sofa;
+import org.apache.uima.resource.ResourceInitializationException;
+import org.apache.uima.util.CasIOUtils;
 import org.apache.uima.util.TypeSystemUtil;
 import org.apache.uima.util.XMLSerializer;
 import org.apache.uima.util.XmlCasSerializer;
@@ -46,6 +49,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 import org.slf4j.Logger;
@@ -280,7 +284,6 @@ public class CoreNLPTweetsTest {
         for(Sentence sen: JCasUtil.select(cas, Sentence.class)){
             List<String> row = new ArrayList<>();
             for(Dependency dep : JCasUtil.selectCovered(Dependency.class, sen)) {
-//                System.out.println("\n"+sen.getCoveredText());
                 for (String neg: negationsDe){
                     if (neg.equalsIgnoreCase(dep.getCoveredText())){
                         row.add(sen.getCoveredText());
@@ -295,7 +298,6 @@ public class CoreNLPTweetsTest {
                         data =  appendRow(data, stringRow);
                         row.clear();
                     }
-
 //                    System.out.println(dep.getCoveredText());
 //                    System.out.println("Dependant "+dep.getDependent().getPos().getCoarseValue());
 //                    System.out.println("Governor "+dep.getGovernor().getPos().getCoarseValue());
@@ -325,8 +327,8 @@ public class CoreNLPTweetsTest {
 
         String dataPath = "/home/staff_homes/raza/Documents/Data/germany2/text/de/";
         File dir = new File(dataPath);
-        List<String> tweetsList = new ArrayList<>(List.of());
-        List<String> negationsDe = Arrays.asList("nicht", "nichts", "kein", "keine", "keinen", "noch", "nie", "niemand", "noch nicht", "nie mehr", "ohne", "keineswegs", "auf keinen");
+        String[][] data = new String[0][];
+        List<String> negationsDe = Arrays.asList("nein", "nicht", "nichts", "kein", "keine", "keinen", "noch", "nie", "niemand", "noch nicht", "nie mehr", "ohne", "keineswegs", "auf keinen");
 //        List<String> negationsDe = Arrays.asList("not", "no", "nothing", "nobody", "none", "nowhere", "neither", "nor", "never", "naught", "nary", "no one", "nothing", "nobody", "nowhere");
 
         int iter = 0, nofTwtsWithNeg = 0;
@@ -344,13 +346,6 @@ public class CoreNLPTweetsTest {
                                 cas.setDocumentText(tweet);
                                 cas.setDocumentLanguage("de");
                                 composer.run(cas);
-//                                System.out.println("\n"+tweet);
-//                                for(Dependency dep: JCasUtil.select(cas, Dependency.class)){
-//                                    System.out.println(dep.getCoveredText());
-//                                    System.out.println("PoS using getDependant() : "+dep.getDependent().getPos().getCoarseValue());
-//                                    System.out.println("getGovernor() : "+dep.getGovernor().getPos().getCoarseValue());
-//                                    System.out.println("Dependency Type : "+dep.getDependencyType());
-//                                }
                                 String fileName = file.getName().split("\\.")[0];
                                 Path path = Paths.get("/home/staff_homes/raza/Documents/Data/germany2-xmi/de/spacy/"+fileName+".xmi.gz");
                                 dumpXMI(cas, path);
@@ -360,9 +355,33 @@ public class CoreNLPTweetsTest {
                         }
                     }
                 }
-            }
+            }System.out.println("Total no. of Tweets with Negation : " + nofTwtsWithNeg);
         } else {
             logger.info("The path isn't a valid directory.");
         }
     }
+
+    @Test
+    public void spaCyTest() throws Exception {
+        String dataPath = "/home/staff_homes/raza/Documents/Data/germany2-xmi/de/spacy/";
+        File dir = new File(dataPath);
+        if(dir.isDirectory()) {
+            for(File file : Objects.requireNonNull(dir.listFiles())){
+                if(file.isFile()) {
+                    System.out.println(file.getName());
+                    Path pathToXmi = Paths.get(dataPath+file.getName());
+                    CasIOUtils.load(new GZIPInputStream(Files.newInputStream(pathToXmi)),  cas.getCas());
+                    Collection<Sentence> sentences = JCasUtil.select(cas, Sentence.class);
+                    for(Sentence s:sentences) {
+                        System.out.println(s.getCoveredText());
+                    }
+                }
+                break;
+            }
+        }
+        else {logger.info("The path isn't a valid directory.");}
+
+    }
+
+
 }

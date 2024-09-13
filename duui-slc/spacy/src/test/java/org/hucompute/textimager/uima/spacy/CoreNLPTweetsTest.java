@@ -101,9 +101,13 @@ public class CoreNLPTweetsTest {
 //        composer.add(
 //                new DUUIRemoteDriver.Component("http://localhost:7070"));
 //         corenlp: Omar
+//        composer.add(
+//                new DUUIRemoteDriver.Component("http://localhost:6060"));
         composer.add(
-                new DUUIRemoteDriver.Component("http://localhost:6060"));
-
+                new DUUIRemoteDriver.Component("http://localhost:4040").withParameter("validate", "false"));
+//         spaCy: Omar
+//        composer.add(
+//                new DUUIRemoteDriver.Component("http://localhost:5050"));
 
         /*Used to run the duui component from docker repo*/
 //        composer.addDriver(new DUUIDockerDriver().withTimeout(10000));
@@ -473,71 +477,88 @@ public class CoreNLPTweetsTest {
                     Path pathToXmi = Paths.get(dataPath+file.getName());
                     /*load the file in the JCas*/
                     CasIOUtils.load(new GZIPInputStream(Files.newInputStream(pathToXmi)),  cas.getCas());
-
+                    Collection<Sentence> casSent = JCasUtil.select(cas, Sentence.class);
+                    System.out.println("---I'm from original CAS generated from Spacy (Daniel)---");
+                    for(Sentence s:casSent) {
+                        for (String neg : negators){
+                            String regex = "\\b" + neg + "\\b";
+                            if (s.getCoveredText().matches(".*"+regex+".*")){
+                                System.out.println(neg+"    "+s.getCoveredText());
+                                for (Dependency dep : JCasUtil.selectCovered(Dependency.class, s)) {
+                                    if(neg.equals(dep.getCoveredText())) {
+                                        System.out.println(dep.getCoveredText()+"       "+dep.getDependencyType());
+                                    }
+                                }
+                            }
+                        }
+                    }System.out.println("---I'm from copied CAS (pCoreNLPCas) from original CAS and the output is from coreNLP---");
+                    /*create a copy of an existing view*/
                     JCas pCoreNLPCas = copyView(cas, "_InitialView", "coreNLP");
+
 
 //                    cas.createView("coreNLP");
 //                    JCas pCoreNLPCas = cas.getView("coreNLP");
 //                    JCas pEmpty = JCasFactory.createJCas();
-//
 //                    CasCopier.copyCas(cas.getView("_InitialView").getCas(), pEmpty.getCas(), true);
 //                    CasCopier.copyCas(pEmpty.getCas(), pCoreNLPCas.getCas().getView("coreNLP"), false);
 
-
-
                     /*get the sentences using Sentence class from UIMA*/
-                    Collection<Sentence> sentences = JCasUtil.select(cas, Sentence.class);
+                    Collection<Sentence> pCasSent = JCasUtil.select(pCoreNLPCas, Sentence.class);
                     totalTweets ++;
                     Set<String> sentenceSet = new HashSet<>(0);
-                    for(Sentence s:sentences) {
+                    for(Sentence s:pCasSent) {
                         /*filter the sentences that contain predefined negators*/
                         for (String neg: negators){
-                            if (s.getCoveredText().contains(neg)){
-
+                            String regex = "\\b" + neg + "\\b";
+                            if (s.getCoveredText().matches(".*"+regex+".*")){
                                   sentenceSet.add(s.getBegin()+"-"+s.getEnd());
-
-//                                cas.setDocumentText(s.getCoveredText());
-//                                cas.setDocumentLanguage("en");
-//                                composer.run(cas);
-//
-//                                String[] words = s.getCoveredText().split("\\s+");
-//                                avgLenSentences += words.length;
-//                                totalSentences++;
-//                                String[] stringRow = new String[]{s.getCoveredText()};
-//                                data =  appendRow(data, stringRow);
-//                                System.out.println(s.getCoveredText());
-//                                for (Dependency dep : JCasUtil.selectCovered(Dependency.class, s)) {
-//                                    dependencies.add(dep.getDependencyType());
-//                                    System.out.println(dep.getCoveredText()+"       "+dep.getDependencyType());
-//                                }
                             }
                         }
                     }
-
+                    /*remove the annotations from previous sofa*/
                     Set<Annotation> removals = new HashSet<>(0);
                     JCasUtil.select(pCoreNLPCas, Sentence.class).stream().filter(s->{
-
                         String sValue = s.getBegin()+"-"+s.getEnd();
                         return !sentenceSet.contains(sValue);
-
                     }).forEach(s->{
                         removals.add(s);
                     });
                     JCasUtil.select(pCoreNLPCas, Dependency.class).stream().forEach(s->{
                         removals.add(s);
                     });
-
                     removals.stream().forEach(a->{
                         a.removeFromIndexes();
                     });
 
-                    System.out.println(JCasUtil.select(cas, Sentence.class).size());
-                    System.out.println(JCasUtil.select(pCoreNLPCas, Sentence.class).size());
+                    composer.run(pCoreNLPCas);
 
-                    break;
+                    for(Sentence s:pCasSent) {
+                        /*filter the sentences that contain predefined negators*/
+                        for (String neg: negators){
+                            String regex = "\\b" + neg + "\\b";
+                            if (s.getCoveredText().matches(".*"+regex+".*")){
+//                                String[] words = s.getCoveredText().split("\\s+");
+//                                avgLenSentences += words.length;
+//                                totalSentences++;
+//                                String[] stringRow = new String[]{s.getCoveredText()};
+//                                data =  appendRow(data, stringRow);
+                                System.out.println(neg+"     "+s.getCoveredText());
+                                for (Dependency dep : JCasUtil.selectCovered(Dependency.class, s)) {
+                                    dependencies.add(dep.getDependencyType());
+                                    if(neg.equals(dep.getCoveredText())) {
+                                        System.out.println(dep.getCoveredText()+"       "+dep.getDependencyType()+"\n");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if(iter>3){
+                    break;}
+                    iter++;
                 }
             }
         }
+
         else {logger.info("The path isn't a valid directory.");}
         /*System.out.println("\nTotal no. of sentences that use negation : " + totalSentences);
         System.out.println("Total no. of Tweets : " + totalTweets);

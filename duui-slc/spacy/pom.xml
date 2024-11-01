@@ -13,7 +13,7 @@
         <maven.compiler.target>11</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <ttlab.duui.version>1.3</ttlab.duui.version>
+        <ttlab.duui.version>1.4</ttlab.duui.version>
         <ttlab.typesystem.version>3.0.3</ttlab.typesystem.version>
     </properties>
 

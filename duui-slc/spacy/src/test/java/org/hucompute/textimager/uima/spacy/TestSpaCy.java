@@ -62,7 +62,7 @@ public class TestSpaCy {
     @Test
     public void multiTestEn() throws Exception {
         composer.add(
-                new DUUIRemoteDriver.Component("http://localhost:9714"));
+                new DUUIRemoteDriver.Component("http://localhost:9714").withParameter("validate", "false"));
 
         cas.setDocumentText("This is an IPhone by Apple. And this is an iMac.");
         cas.setDocumentLanguage("en");

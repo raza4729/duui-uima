@@ -133,7 +133,7 @@ public class AnnotationTest {
         }
     }
 
-    public void writeToJson(JsonArray jsonArray, String path) throws IOException {
+    public void writeToJson(JsonObject jsonArray, String path) throws IOException {
         Gson gson = new Gson();
         try (FileWriter writer = new FileWriter(path)) {
             gson.toJson(jsonArray, writer);
@@ -145,13 +145,15 @@ public class AnnotationTest {
     @Test
     public void viewCas() throws IOException, ResourceInitializationException, CASException {
 
-        String sInputPath = "/home/raza/Documents/Data/germany2-complete/spacy/negation_dataset_en_annotated_2/";
+        String sInputPath = "/home/raza/Documents/Data/Annotations/spacy-corenlp/output_en/";
         File directory = new File(sInputPath);
         File[] files = directory.listFiles((dir, name) -> name.endsWith(".xmi.gz"));
         /*Write data to json*/
         JsonArray jsonArraySentences = new JsonArray();
         JsonArray jsonArrayAnnotations = new JsonArray();
-        JsonArray jsonArrayDepAnnotations = new JsonArray();
+        JsonArray sentenceArray = new JsonArray();
+        JsonObject root = new JsonObject();
+
         final int[] corenlpCount = {0};
         final int[] spacyCount = {0};
         final int[] initViewCount = {0};
@@ -164,86 +166,89 @@ public class AnnotationTest {
                 JCas initView = pCas.getView("_InitialView");
                 JCas spacyView = pCas.getView("spacy");
                 JCas coreNLPView = pCas.getView("corenlp");
-
-                pCas.getViewIterator().forEachRemaining(v->{
-//                   System.out.println(v.getViewName());
-                   if (Objects.equals(v.getViewName(), "corenlp")){ corenlpCount[0] = corenlpCount[0] + JCasUtil.selectAll(v).size();}
-                    if (Objects.equals(v.getViewName(), "spacy")){spacyCount[0] = spacyCount[0] + JCasUtil.selectAll(v).size();}
-                    if (Objects.equals(v.getViewName(), "_InitialView")){ initViewCount[0] = initViewCount[0] + JCasUtil.selectAll(v).size();}
-//                   System.out.println(JCasUtil.selectAll(v).size());
-                });
-
+                int iter = 0;
                 for(Sentence sen: JCasUtil.select(spacyView, Sentence.class)){
-//                    System.out.println(sen.getCoveredText());
-                    JsonArray dependencies = new JsonArray();
-                    String deprel = "";
+                    JsonObject sentenceObj = new JsonObject();
+                    sentenceObj.addProperty("sentence_text", sen.getCoveredText());
+                    JsonArray tokensArray = new JsonArray();
+
+                    iter++;
                     for(Dependency dep : JCasUtil.selectCovered(Dependency.class, sen)){
-//                        System.out.print(dep.getDependencyType()+ " | ");
-//                        System.out.print(dep.getCoveredText()+ " | ");
-//                        System.out.print(dep.getDependent().getText()+ " | ");
-//                        System.out.print(dep.getDependent().getPos().getPosValue()+ " | ");
-//                        System.out.print(dep.getDependent().getPos().getCoarseValue()+ " | ");
-//                        System.out.print("Governor: "+ dep.getGovernor().getText()+ " | ");
-//                        System.out.print(dep.getGovernor().getPos().getPosValue()+ " | ");
-//                        System.out.print(dep.getGovernor().getPos().getCoarseValue()+ " | ");
-//                        if (Objects.equals(dep.getDependencyType(), "--")){
-//                            System.out.print(dep.getDependencyType()+ "  "+ dep.getCoveredText() + "  \n" );
-//                        }
 
-                        dependencies.add(dep.getDependencyType());
+                        JsonObject tokenObj = new JsonObject();
+                        tokenObj.addProperty("token_text", dep.getCoveredText());
+                        if (dep.getDependent().getPos().getCoarseValue() != null){
+                            tokenObj.addProperty("POS", dep.getDependent().getPos().getCoarseValue());
+                        }else{
+                            tokenObj.addProperty("POS", dep.getDependent().getPos().getPosValue());
+                        }
+                        tokenObj.addProperty("dependency", dep.getDependencyType());
+                        tokenObj.addProperty("begin", dep.getBegin());
+                        tokenObj.addProperty("end", dep.getEnd());
+                        if (dep.getGovernor().getText() != null){
+                            tokenObj.addProperty("head", dep.getGovernor().getText());
+                            tokenObj.addProperty("head_POS", dep.getGovernor().getPos().getCoarseValue());
+                        }
+                        tokensArray.add(tokenObj);
                     }
-//                    System.out.println();
-                    int depReference = sen.getAddress();
-                    int id = sen.getBegin();
-                    JsonObject depJson = new JsonObject();
-                    depJson.add("dependencies", dependencies);
-//                    depJson.addProperty("reference", depReference);
-                    depJson.addProperty("beginID", id);
-                    jsonArrayDepAnnotations.add(depJson);
+                    sentenceObj.add("tokens", tokensArray);
+                    sentenceArray.add(sentenceObj);
+//                    System.out.println("Inner loop: "+ iter);
+                    if (iter == 100000){
+                        root.add("sentences", sentenceArray);
+                        writeToJson(root, "/home/raza/Documents/Python/classification/data/view_spacy_en_batch_1.json");
+                        break;
+                    }
                 }
 
-                List<Sentence> defaultViewSentences = new ArrayList<>(JCasUtil.select(initView, Sentence.class));
-                ArrayList<AnnotationComment> defaultViewAnnotation = new ArrayList<>(JCasUtil.select(initView, AnnotationComment.class));
-                for (int i = 0; i < defaultViewSentences.size() && i < defaultViewAnnotation.size(); i++) {
-//            System.out.print(defaultViewSentences.get(i).getCoveredText() + " " + defaultViewAnnotation.get(i).getKey() + " " +
-//                    defaultViewAnnotation.get(i).getValue());
-//            System.out.print("   " +defaultViewSentences.get(i).getBegin() + "  "+ defaultViewSentences.get(i).getEnd());
-//            System.out.println();
-//                    String annotationReference = defaultViewAnnotation.get(i).getReference().toString().split(":")[1].replaceAll("[a-zA-Z\\n\\s]", "");
-//                    String sentenceReference = defaultViewSentences.get(i).toString().split(":")[1].replaceAll("[a-zA-Z\\n\\s]", "");
-                    int sentenceReference = defaultViewSentences.get(i).getAddress();
-                    int sentenceBegin = defaultViewSentences.get(i).getBegin();
-                    int annotationReference = defaultViewAnnotation.get(i).getReference().getAddress();
 
-                    JsonObject sentencesJson = new JsonObject();
-                    sentencesJson.addProperty("sentence", defaultViewSentences.get(i).getCoveredText());
-                    sentencesJson.addProperty("reference", sentenceReference);
-                    sentencesJson.addProperty("beginID", sentenceBegin);
-                    jsonArraySentences.add(sentencesJson);
+//                List<Sentence> defaultViewSentences = new ArrayList<>(JCasUtil.select(initView, Sentence.class));
+//                ArrayList<AnnotationComment> defaultViewAnnotation = new ArrayList<>(JCasUtil.select(initView, AnnotationComment.class));
+//                for (int i = 0; i < defaultViewSentences.size() && i < defaultViewAnnotation.size(); i++) {
+//                    int sentenceReference = defaultViewSentences.get(i).getAddress();
+//                    int sentenceBegin = defaultViewSentences.get(i).getBegin();
+//                    int annotationReference = defaultViewAnnotation.get(i).getReference().getAddress();
+//
+//                    JsonObject sentencesJson = new JsonObject();
+//                    sentencesJson.addProperty("sentence", defaultViewSentences.get(i).getCoveredText());
+//                    sentencesJson.addProperty("reference", sentenceReference);
+//                    sentencesJson.addProperty("beginID", sentenceBegin);
+//                    jsonArraySentences.add(sentencesJson);
+//
+//                    JsonObject labelsJson = new JsonObject();
+//                    if (defaultViewAnnotation.get(i).getKey().equalsIgnoreCase("label")){
+//                        labelsJson.addProperty("label", defaultViewAnnotation.get(i).getValue());
+//                        labelsJson.addProperty("reference", annotationReference);
+//                    }
+//                    if (defaultViewAnnotation.get(i).getKey().equalsIgnoreCase("tweetID")){
+//                        labelsJson.addProperty("tweetID", defaultViewAnnotation.get(i).getValue());
+//                        labelsJson.addProperty("reference", annotationReference);
+//                    }
+//                    jsonArrayAnnotations.add(labelsJson);
+//                }
 
-                    JsonObject labelsJson = new JsonObject();
-                    if (defaultViewAnnotation.get(i).getKey().equalsIgnoreCase("label")){
-                        labelsJson.addProperty("label", defaultViewAnnotation.get(i).getValue());
-                        labelsJson.addProperty("reference", annotationReference);
-                    }
-                    if (defaultViewAnnotation.get(i).getKey().equalsIgnoreCase("tweetID")){
-                        labelsJson.addProperty("tweetID", defaultViewAnnotation.get(i).getValue());
-                        labelsJson.addProperty("reference", annotationReference);
-                    }
-                    jsonArrayAnnotations.add(labelsJson);
-                }
             }
         }
-//        writeToJson(jsonArrayDepAnnotations, "/home/raza/Documents/Python/classification/data/dependencies_all.json");
+//        writeToJson(root, "/home/raza/Documents/Python/classification/data/view_spacy_en_batch_1.json");
 //        writeToJson(jsonArraySentences, "/home/raza/Documents/Python/classification/data/sentences_all.json");
 //        writeToJson(jsonArrayAnnotations, "/home/raza/Documents/Python/classification/data/labels_all.json");
-        System.out.println(Arrays.toString(corenlpCount));
-        System.out.println(Arrays.toString(spacyCount));
-        System.out.println(Arrays.toString(initViewCount));
 
     }
 
     public void archived(){
+
+        //                        System.out.print(iter +". "+ dep.getCoveredText()+ " | ");
+//                        System.out.print( dep.getDependent().getText()+ " | ");
+//                        System.out.print( dep.getDependencyType()+ " | ");
+//                        System.out.print( dep.getDependent().getPos().getPosValue()+ " | ");
+//                        System.out.print( dep.getDependent().getPos().getCoarseValue()+ " | ");
+//                        System.out.print(dep.getBegin() + "   " + dep.getEnd()+ " | ");
+//                        System.out.print("Governor: "+ dep.getGovernor().getText()+ " | ");
+//                        System.out.print(dep.getGovernor().getPos().getPosValue()+ " | ");
+//                        System.out.print(dep.getGovernor().getPos().getCoarseValue()+ " | ");
+//                        System.out.println();
+
+
         //        JCasUtil.select(initView, AnnotationComment.class).forEach(ac->{
 //            System.out.println(ac.getKey() + "  "+ ac.getValue());
 //
@@ -293,6 +298,13 @@ public class AnnotationTest {
 //            System.out.println(JCasUtil.selectAll(v).size());
 //        });
 
+        //                pCas.getViewIterator().forEachRemaining(v->{
+////                   System.out.println(v.getViewName());
+//                   if (Objects.equals(v.getViewName(), "corenlp")){ corenlpCount[0] = corenlpCount[0] + JCasUtil.selectAll(v).size();}
+//                    if (Objects.equals(v.getViewName(), "spacy")){spacyCount[0] = spacyCount[0] + JCasUtil.selectAll(v).size();}
+//                    if (Objects.equals(v.getViewName(), "_InitialView")){ initViewCount[0] = initViewCount[0] + JCasUtil.selectAll(v).size();}
+////                   System.out.println(JCasUtil.selectAll(v).size());
+//                });
     }
 
     public static String sanitizeText(String text) {
@@ -335,10 +347,10 @@ public class AnnotationTest {
         // Hinzufügen der einzelnen Driver zum Composer
         composer.addDriver(docker_driver, uima_driver, swarm_driver);  // remote_driver und swarm_driver scheint nicht benötigt zu werden.
 
-        composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-spacy-en_core_web_sm:0.4.3")
-                .withScale(iWorker).withImageFetching()
-                .withTargetView("spacy")
-                .build().withTimeout(3600));
+//        composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-spacy-en_core_web_sm:0.4.3")
+//                .withScale(iWorker).withImageFetching()
+//                .withTargetView("spacy")
+//                .build().withTimeout(3600));
 
         int iter = 0;
 //        ObjectMapper mapper = new ObjectMapper();
@@ -373,7 +385,9 @@ public class AnnotationTest {
 
     @Test
     public void spaCyTestOneDocument() throws Exception {
-        String pathToFile =  "/home/raza/Documents/Python/classification/data/negation_dataset_en.json";
+//        String pathToFile =  "/home/raza/Documents/Python/classification/data/negation_dataset_en.json";
+        String pathToFile =  "/home/raza/Documents/Python/classification/data/negation_dataset_de.json";
+
         int iter = 0;
         JCas pCas = JCasFactory.createJCas();
         ObjectMapper mapper = new ObjectMapper();
@@ -427,15 +441,15 @@ public class AnnotationTest {
 
                 if(iCount.get()%iCut==0){
                     pCas.setDocumentText(sb.toString());
-                    pCas.setDocumentLanguage("en");
+                    pCas.setDocumentLanguage("de");
 
                     JCas spacy = pCas.createView("spacy");
                     spacy.setDocumentText(sb.toString());
-                    spacy.setDocumentLanguage("en");
+                    spacy.setDocumentLanguage("de");
 
                     JCas corenlp = pCas.createView("corenlp");
                     corenlp.setDocumentText(sb.toString());
-                    corenlp.setDocumentLanguage("en");
+                    corenlp.setDocumentLanguage("de");
 
 
                     DocumentMetaData dmd = new DocumentMetaData(pCas);
@@ -443,29 +457,29 @@ public class AnnotationTest {
                     dmd.setDocumentUri("/opt/files/"+iCount);
                     dmd.setDocumentBaseUri("/opt/files");
                     dmd.addToIndexes();
-                    CasIOUtils.save(pCas.getCas(), new FileOutputStream(new File("/home/raza/Documents/Data/germany2-complete/spacy/negation_dataset_en_2/"+iCount+".xmi")), SerialFormat.XMI_1_1_PRETTY);
+                    CasIOUtils.save(pCas.getCas(), new FileOutputStream(new File("/home/raza/Documents/Data/germany2-complete/spacy/negation_dataset_de_xmi/"+iCount+".xmi")), SerialFormat.XMI_1_1_PRETTY);
                     pCas.reset();
                     sb = new StringBuilder();
                 }
             }
             if(data.getSentences().size()%iCut!=0){
                 pCas.setDocumentText(sb.toString());
-                pCas.setDocumentLanguage("en");
+                pCas.setDocumentLanguage("de");
 
                 JCas spacy = pCas.createView("spacy");
                 spacy.setDocumentText(sb.toString());
-                spacy.setDocumentLanguage("en");
+                spacy.setDocumentLanguage("de");
 
                 JCas corenlp = pCas.createView("corenlp");
                 corenlp.setDocumentText(sb.toString());
-                corenlp.setDocumentLanguage("en");
+                corenlp.setDocumentLanguage("de");
 
                 DocumentMetaData dmd = new DocumentMetaData(pCas);
                 dmd.setDocumentId(iCount+"");
                 dmd.setDocumentUri("/opt/files/"+iCount);
                 dmd.setDocumentBaseUri("/opt/files");
                 dmd.addToIndexes();
-                CasIOUtils.save(pCas.getCas(), new FileOutputStream(new File("/home/raza/Documents/Data/germany2-complete/spacy/negation_dataset_en_2/"+iCount+".xmi")), SerialFormat.XMI_1_1_PRETTY);
+                CasIOUtils.save(pCas.getCas(), new FileOutputStream(new File("/home/raza/Documents/Data/germany2-complete/spacy/negation_dataset_de_xmi/"+iCount+".xmi")), SerialFormat.XMI_1_1_PRETTY);
                 pCas.reset();
                 sb = new StringBuilder();
             }
@@ -506,16 +520,16 @@ public class AnnotationTest {
         // Adding the individual drivers to the composer
         composer.addDriver(docker_driver, uima_driver, swarm_driver);  // remote_driver and swarm_driver don't seem to be needed.
 
-        composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-spacy-en_core_web_sm:0.4.3")
-                .withScale(iWorker).withImageFetching()
-                .withTargetView("spacy")
-                .build().withTimeout(3600));
+//        composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-spacy-en_core_web_sm:0.4.3")
+//                .withScale(iWorker).withImageFetching()
+//                .withTargetView("spacy")
+//                .build().withTimeout(3600));
 
-        composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-slc-corenlp/cu124:latest")
-                .withParameter("validate", "false")
-                .withScale(iWorker).withImageFetching()
-                .withTargetView("corenlp")
-                .build().withTimeout(3600));
+//        composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-slc-corenlp/cu124:latest")
+//                .withParameter("validate", "false")
+//                .withScale(iWorker).withImageFetching()
+//                .withTargetView("corenlp")
+//                .build().withTimeout(3600));
 
 //        composer.add(new DUUIDockerDriver.Component("docker.texttechnologylab.org/duui-slc-stanza/cu124:latest").withImageFetching()
 //                .withScale(iWorker)
